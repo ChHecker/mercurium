@@ -1,24 +1,58 @@
 use crate::payload::Payload;
 use crate::{DynResult, CONFIG};
-use futures::future::join_all;
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use log::info;
-use std::fs::{self};
+use std::fs;
+use std::io::Write;
 use std::path::Path;
 
 impl Payload {
     /// Download a tarball from a URL.
-    async fn download_source(url: &str, path: impl AsRef<Path>) -> DynResult<()> {
+    async fn download_source(
+        url: &str,
+        path: impl AsRef<Path>,
+        mpb: Option<&MultiProgress>,
+    ) -> DynResult<()> {
         let response = reqwest::get(url).await?;
+        let total_size = response.content_length().unwrap();
+
+        let pb = mpb.map(|mpb| {
+            let pb = mpb.add(ProgressBar::new(total_size));
+            pb.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.green} {msg} [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})").unwrap()
+                .progress_chars("#>-")
+            );
+            pb.set_message(format!("{}", path.as_ref().to_string_lossy()));
+            pb
+        });
 
         info!(
             "Downloading file {} from {}.",
             path.as_ref().to_string_lossy(),
             url
         );
-        println!("\tDownloading {}...", path.as_ref().to_string_lossy());
 
-        let content = response.bytes().await?;
-        fs::write(path, content)?;
+        let mut file = fs::File::create(path)?;
+        let mut downloaded: u64 = 0;
+        let mut stream = response.bytes_stream();
+
+        while let Some(item) = stream.next().await {
+            let chunk = item?;
+            file.write_all(&chunk)?;
+            downloaded = (downloaded + (chunk.len() as u64)).min(total_size);
+            if let Some(pb) = &pb {
+                pb.set_position(downloaded);
+            }
+        }
+
+        // pb.finish_with_message(&format!("Downloaded {} to {}", url, path));
+        if let Some(pb) = &pb {
+            pb.finish();
+        }
+
         Ok(())
     }
 
@@ -26,16 +60,18 @@ impl Payload {
     async fn download_pkgs(&self) -> DynResult<()> {
         let conf = CONFIG.get().unwrap();
         println!("Downloading packages...");
+        let mpb = MultiProgress::new();
 
-        let mut futures = Vec::with_capacity(self.packages.len());
+        let futures = FuturesUnordered::new();
         for pkg in &self.packages {
             let tar_name = format!("{}_{}.tar.gz", pkg.info.name, pkg.info.version);
             let tar = conf.sources_path().join(tar_name);
             fs::create_dir_all(conf.sources_path())?;
-            futures.push(Self::download_source(&pkg.source.url, tar));
+            let future = Self::download_source(&pkg.source.url, tar, Some(&mpb));
+            futures.push(future);
         }
 
-        join_all(futures).await;
+        let _: Vec<_> = futures.collect().await;
         Ok(())
     }
 
@@ -73,7 +109,7 @@ mod tests {
         let tmpdir = tempfile::tempdir().unwrap();
         let path = tmpdir.path().join("topgrade.tar.gz");
 
-        Payload::download_source("https://github.com/topgrade-rs/topgrade/releases/download/v12.0.2/topgrade-v12.0.2-x86_64-apple-darwin.tar.gz", &path).await.unwrap();
+        Payload::download_source("https://github.com/topgrade-rs/topgrade/releases/download/v12.0.2/topgrade-v12.0.2-x86_64-apple-darwin.tar.gz", &path, None).await.unwrap();
 
         assert!(path.exists());
     }
@@ -84,7 +120,7 @@ mod tests {
         let tmpdir = tempfile::tempdir().unwrap();
         let path = tmpdir.path();
 
-        Payload::download_source("https://github.com/topgrade-rs/topgrade/releases/download/v12.0.2/topgrade-v12.0.2-x86_64-apple-darwin.tar.gz", &path.join("topgrade.tar.gz")).await.unwrap();
+        Payload::download_source("https://github.com/topgrade-rs/topgrade/releases/download/v12.0.2/topgrade-v12.0.2-x86_64-apple-darwin.tar.gz", &path.join("topgrade.tar.gz"), None).await.unwrap();
         Payload::decompress_tarball(path.join("topgrade.tar.gz"), path).unwrap();
 
         assert!(path.join("topgrade").exists());
@@ -96,7 +132,7 @@ mod tests {
         let tmpdir = tempfile::tempdir().unwrap();
         let path = tmpdir.path().join("topgrade.tar.gz");
 
-        Payload::download_source("https://github.com/topgrade-rs/topgrade/releases/download/v12.0.2/topgrade-v12.0.2-x86_64-apple-darwin.tar.gz", &path).await.unwrap();
+        Payload::download_source("https://github.com/topgrade-rs/topgrade/releases/download/v12.0.2/topgrade-v12.0.2-x86_64-apple-darwin.tar.gz", &path, None).await.unwrap();
         assert!(
             Payload::check_sha512(
                 path, "45dfddf13e8f5a5eb4a95dde6743f42f216ed6d3751d7430dae5f9e0dc54e67a400e6572789fb9984ff1c80bdee42a92112a76d5399436e857e723b653b366f1"

@@ -1,16 +1,13 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use clap::{Args, Parser, Subcommand};
 use directories::ProjectDirs;
-use nucleo_matcher::pattern::{CaseMatching, Pattern};
-use nucleo_matcher::Matcher;
-use redb::{Database, ReadableTable};
+use redb::Database;
 
+use super::*;
 use crate::config::Config;
 use crate::db::Db;
 use crate::payload::Payload;
-use crate::pkg::Installed;
 use crate::pkgfile::PackageFile;
 use crate::{ALL_PKGS, CONFIG, DB, INSTALLED_PKGS};
 

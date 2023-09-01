@@ -1,20 +1,10 @@
-use std::collections::HashSet;
-use std::ffi::OsStr;
-use std::fs::{self, File};
-use std::io::{self, BufReader};
-use std::ops::Deref;
+use std::fs::{self};
 use std::path::Path;
-use std::process::{Command, ExitStatus};
 
-use flate2::bufread::GzDecoder;
-use log::{info, trace, warn};
-use sha2::{Digest, Sha512};
-use tar::Archive;
+use log::info;
 
-use crate::db::Db;
-use crate::pkg::{Installed, Local, Package};
-use crate::pkgfile::PackageFile;
-use crate::{DynResult, ALL_PKGS, CONFIG, DB, INSTALLED_PKGS};
+use super::*;
+use crate::{DynResult, CONFIG};
 
 impl Payload {
     /// Download a tarball from a URL.
@@ -67,12 +57,11 @@ impl Payload {
 mod tests {
     use std::str::FromStr;
 
-    use redb::{Database, ReadableTable, TableDefinition};
+    use redb::Database;
     use semver::Version;
 
     use super::*;
     use crate::config::{Config, ConfigDirs};
-    use crate::db::DbPackage;
     use crate::pkg::{Installed, Local, Package, PackageInfo, Source};
     use crate::DB;
 

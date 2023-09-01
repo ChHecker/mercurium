@@ -8,7 +8,7 @@ edition = "2021"
 
 [features]
 default = ["parallel"]
-parallel = ["futures", "tokio"]
+parallel = ["dep:futures", "dep:tokio"]
 
 [dependencies]
 bincode = "1.3.3"
@@ -17,12 +17,13 @@ directories = "5.0.1"
 flate2 = "1.0.27"
 futures = { version = "0.3.28", optional = true }
 hex = "0.4.3"
+indicatif = "0.17.6"
 log = "0.4.20"
 nucleo-matcher = "0.2.0"
 redb = { git = "https://github.com/ChHecker/redb.git", branch = "serialize", features = [
     "serialize-derive",
 ] }
-reqwest = { version = "0.11.20", features = ["blocking"] }
+reqwest = { version = "0.11.20", features = ["blocking", "stream"] }
 semver = { version = "1.0.18", features = ["serde"] }
 serde = { version = "1.0.188", features = ["derive"] }
 sha2 = "0.10.7"

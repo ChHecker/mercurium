@@ -13,6 +13,9 @@ Named after the messenger of the gods Mercurius, this is my attempt at a simple 
 - [ ] Build dependencies
 - [ ] Uninstall (keep track of installed files, maybe using `fakeroot`?)
 - [ ] Better "UX"
+    - [ ] Check if payload is empty and stop
+    - [ ] Better messages
+    - [x] Download progress bars
 - [x] Multithreaded downloading
 - [ ] More tests
 
