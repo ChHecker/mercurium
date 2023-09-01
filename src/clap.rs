@@ -2,17 +2,23 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use clap::{Args, Parser, Subcommand};
-use directories::ProjectDirs;
 use nucleo_matcher::pattern::{CaseMatching, Pattern};
 use nucleo_matcher::Matcher;
-use redb::{Database, ReadableTable};
+use redb::ReadableTable;
 
-use crate::config::Config;
 use crate::db::Db;
-use crate::payload::Payload;
 use crate::pkg::Installed;
 use crate::pkgfile::PackageFile;
-use crate::{ALL_PKGS, CONFIG, DB, INSTALLED_PKGS};
+use crate::{ALL_PKGS, DB, INSTALLED_PKGS};
+
+#[cfg(not(feature = "parallel"))]
+mod blocking;
+#[cfg(not(feature = "parallel"))]
+pub use blocking::*;
+#[cfg(feature = "parallel")]
+mod parallel;
+#[cfg(feature = "parallel")]
+pub use parallel::*;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -78,75 +84,6 @@ struct ListArgs {
     all: bool,
 }
 
-pub fn read_args() {
-    let cli = Cli::parse();
-
-    let mut conf_path;
-    match cli.config {
-        Some(conf) => conf_path = conf,
-        None => {
-            conf_path = ProjectDirs::from("de", "mercurium", "mercurium")
-                .unwrap()
-                .config_dir()
-                .to_owned();
-            conf_path.push("config.toml");
-        }
-    }
-
-    CONFIG
-        .set(Config::load(&conf_path).unwrap())
-        .expect("error setting config");
-    DB.set(
-        Database::create(
-            CONFIG
-                .get()
-                .expect("error getting config")
-                .packages_path()
-                .join("packages.db"),
-        )
-        .expect("error creating database"),
-    )
-    .expect("error creating database");
-
-    match &cli.command {
-        Commands::Install(args) => {
-            if args.local {
-                install_local(&args.pkg);
-            } else {
-                install(&args.pkg);
-            }
-        }
-        Commands::Add(args) => add(&args.pkg),
-        Commands::Remove(args) => remove(&args.pkg),
-        Commands::Update => todo!(), // TODO
-        Commands::Search(args) => search(&args.pkg, args.installed),
-        Commands::List(args) => list(args.all),
-    }
-}
-
-fn install_local(pkgs: &[impl AsRef<Path>]) {
-    let mut pkgfiles: Vec<PackageFile> = Vec::new();
-    for pkg in pkgs {
-        let pkg_content = fs::read_to_string(pkg).expect("error reading pkg file");
-        let pkgfile: PackageFile = toml::from_str(&pkg_content).expect("invalid pkg file");
-        pkgfiles.push(pkgfile);
-    }
-
-    let mut payload = Payload::new();
-    for pkg in pkgfiles {
-        payload.add_pkgfile(pkg).unwrap();
-    }
-    payload.install().unwrap();
-}
-
-fn install(pkgs: &[String]) {
-    let mut payload = Payload::new();
-    for pkg in pkgs {
-        payload.add_pkg(pkg).unwrap();
-    }
-    payload.install().unwrap();
-}
-
 fn add(pkgs: &[impl AsRef<Path>]) {
     for pkg in pkgs {
         let pkg_content = fs::read_to_string(pkg).expect("error reading pkg file");
@@ -159,12 +96,13 @@ fn remove(pkgs: &[String]) {
     // TODO: Remove!
     let db = DB.get().unwrap();
     for pkg_name in pkgs {
-        db.modify(INSTALLED_PKGS, pkg_name.as_str(), |val| {
-            let mut val = val.expect("package not installed");
+        db.modify(ALL_PKGS, pkg_name.as_str(), |val| {
+            let mut val = val.unwrap();
             val.local.installed = Installed::False;
             Some(val)
         })
         .unwrap();
+        db.remove(INSTALLED_PKGS, pkg_name.as_str()).unwrap();
     }
 }
 
@@ -201,7 +139,20 @@ fn list(all: bool) {
         read_txn.open_table(INSTALLED_PKGS).unwrap()
     };
 
+    let mut pkgs: Vec<(String, bool)> = Vec::new();
+
     for pkg in read_table.iter().unwrap() {
-        println!("{}", pkg.unwrap().0.value());
+        let (key, value) = pkg.unwrap();
+
+        pkgs.push((key.value().to_owned(), value.value().installed.into()));
     }
+
+    pkgs.sort_by_key(|x| x.0.to_lowercase());
+    pkgs.into_iter().for_each(|(name, installed)| {
+        let mut to_print = name;
+        if all && installed {
+            to_print.push_str(" [Installed]");
+        }
+        println!("{to_print}");
+    });
 }

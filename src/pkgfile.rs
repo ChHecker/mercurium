@@ -44,16 +44,13 @@ mod tests {
     use std::fs;
     use std::str::FromStr;
 
-    use redb::{Database, ReadableTable};
     use semver::Version;
 
     use super::*;
-    use crate::config::{Config, ConfigDirs};
-    use crate::{init_logging, ALL_PKGS, CONFIG};
 
     #[test]
     fn parse_toml() {
-        init_logging();
+        // init_logging();
 
         let package_file: PackageFile = toml::from_str(
             "
@@ -67,11 +64,7 @@ mod tests {
 
                 [source]
                 url = \"https://github.com/topgrade-rs/topgrade/releases/download/v12.0.2/topgrade-v12.0.2-x86_64-apple-darwin.tar.gz\"
-
-                [install]
-                install = \"\"\"
-                mv ${source}/topgrade ${binary}
-                \"\"\"
+                install = \" mv ${source}/topgrade ${binary} \"
             "
         )
         .unwrap();
@@ -80,10 +73,10 @@ mod tests {
 
     #[test]
     fn parse_file() {
-        init_logging();
+        // init_logging();
 
         let file: PackageFile =
-            toml::from_str(&fs::read_to_string("tests/topgrade.pkg").unwrap()).unwrap();
+            toml::from_str(&fs::read_to_string("packages/topgrade.pkg").unwrap()).unwrap();
 
         let local = PackageFile {
                         info: PackageInfo {
@@ -106,63 +99,5 @@ mod tests {
                     };
 
         assert_eq!(file, local);
-    }
-
-    #[test]
-    fn test_payload() {
-        init_logging();
-        let tmpdir = tempfile::tempdir().unwrap();
-
-        CONFIG
-            .set(Config {
-                directories: ConfigDirs {
-                    sources: tmpdir.path().join("sources"),
-                    builds: tmpdir.path().join("builds"),
-                    binaries: tmpdir.path().join("binaries"),
-                    packages: tmpdir.path().to_owned(),
-                },
-            })
-            .unwrap();
-        let db_path = CONFIG
-            .get()
-            .expect("error getting config")
-            .packages_path()
-            .join("packages.db");
-        DB.set(Database::create(db_path).expect("error creating database"))
-            .expect("error creating database");
-        let topgrade = PackageFile {
-                        info: PackageInfo {
-                            name: "topgrade".to_owned(),
-                            version: Version::from_str("12.0.2").unwrap(),
-                            license: "GPL3.0".to_owned(),
-                            repository: Some("https://github.com/topgrade-rs/topgrade".to_owned()),
-                            authors: None,
-                            description: None,
-                            dependencies: None,
-                            build_dependencies: None,
-                            provides: None,
-                        },
-                        source: Source {
-                            url: "https://github.com/topgrade-rs/topgrade/releases/download/v12.0.2/topgrade-v12.0.2-x86_64-apple-darwin.tar.gz".to_owned(),
-                            checksum: None,
-                            build: None,
-                            install: "mv ${source}/topgrade ${binary}".to_owned(),
-                        },
-                    };
-
-        topgrade.add_to_db().unwrap();
-
-        let read_txn = DB.get().unwrap().begin_read().unwrap();
-        let read_table = read_txn.open_table(ALL_PKGS).unwrap();
-        assert_eq!(
-            read_table
-                .get("topgrade")
-                .unwrap()
-                .unwrap()
-                .value()
-                .installed,
-            Installed::False
-        );
-        assert!(read_table.get("topgrade").unwrap().unwrap().value().added);
     }
 }

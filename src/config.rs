@@ -122,11 +122,11 @@ fn default_packages() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::init_logging;
+    // use crate::init_logging;
 
     #[test]
     fn load_config() {
-        init_logging();
+        // init_logging();
 
         let conf = "
             [directories]

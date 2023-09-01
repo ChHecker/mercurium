@@ -9,10 +9,12 @@ Named after the messenger of the gods Mercurius, this is my attempt at a simple 
 - SHA512 checksum checking
 
 ## To-do
-- Build dependencies
-- Uninstall (keep track of installed files, maybe using `fakeroot`?)
-- Better "UX"
-- Multithreading
+- [ ] Decompressing `.tar.xz` and `.zip`
+- [ ] Build dependencies
+- [ ] Uninstall (keep track of installed files, maybe using `fakeroot`?)
+- [ ] Better "UX"
+- [x] Multithreaded downloading
+- [ ] More tests
 
 ## Licenses
 For all licenses, look into `license.html`.  

@@ -157,6 +157,8 @@ pub trait Db<'a, 'b> {
     type Table;
     type Iterator;
 
+    fn init_table(&self, table: Self::Table) -> Result<(), Self::Error>;
+
     fn get(
         &self,
         table: Self::Table,
@@ -201,6 +203,16 @@ impl<'a: 'b, 'b> Db<'a, 'b> for Database {
     type ExtValue = Package;
     type Table = TableDefinition<'a, &'static str, DbPackage>;
     type Iterator = Range<'b, Self::Key<'static>, Self::Value>;
+
+    fn init_table(&self, table: Self::Table) -> Result<(), Self::Error> {
+        let write_txn = self.begin_write()?;
+        {
+            write_txn.open_table(table)?;
+        }
+        write_txn.commit()?;
+
+        Ok(())
+    }
 
     fn get(
         &self,
@@ -328,15 +340,15 @@ mod tests {
     use redb::{Database, ReadableTable, TableDefinition};
 
     use super::*;
-    use crate::init_logging;
+    // use crate::init_logging;
     use crate::pkg::{Installed, Local, Package, PackageInfo, Source};
 
     #[test]
     fn test_redb() {
-        init_logging();
+        // init_logging();
 
         let tmpdir = tempfile::tempdir().unwrap();
-        let path = tmpdir.path();
+        let path = tmpdir.path().join("test.db");
 
         let table: TableDefinition<&str, DbPackage> = TableDefinition::new("test");
         let db = Database::create(path).unwrap();
