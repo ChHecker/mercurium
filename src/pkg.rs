@@ -67,10 +67,10 @@ pub struct Local {
 }
 
 /// Whether a package is installed and if it's the case, whether manually or automatically.
-#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub enum Installed {
-    Automatically,
-    Manually,
+    Automatically(Version),
+    Manually(Version),
     False,
 }
 
@@ -81,11 +81,21 @@ impl Installed {
     /// Otherwise, it stays manually installed.
     pub fn update(self, new: Installed) -> Installed {
         match self {
-            Installed::Automatically | Installed::False => new,
-            Installed::Manually => match new {
-                Installed::Automatically | Installed::Manually => Installed::Manually,
+            Installed::Automatically(_) | Installed::False => new,
+            Installed::Manually(_) => match new {
+                Installed::Automatically(ver) | Installed::Manually(ver) => {
+                    Installed::Manually(ver)
+                }
                 Installed::False => Installed::False,
             },
+        }
+    }
+
+    /// Get the version of the package if installed.
+    pub fn version(&self) -> Option<&Version> {
+        match &self {
+            Installed::Automatically(ver) | Installed::Manually(ver) => Some(ver),
+            Installed::False => None,
         }
     }
 }
@@ -93,7 +103,7 @@ impl Installed {
 impl From<Installed> for bool {
     fn from(value: Installed) -> Self {
         match value {
-            Installed::Automatically | Installed::Manually => true,
+            Installed::Automatically(_) | Installed::Manually(_) => true,
             Installed::False => false,
         }
     }

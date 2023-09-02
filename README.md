@@ -7,17 +7,19 @@ Named after the messenger of the gods Mercurius, this is my attempt at a simple 
 - Automatic building from source
 - Dependency resolving
 - SHA512 checksum checking
+- Autocompletion using `clap-complete`
 
 ## To-do
 - [ ] Decompressing `.tar.xz` and `.zip`
 - [ ] Build dependencies
-- [ ] Uninstall (keep track of installed files, maybe using `fakeroot`?)
+- [ ] Uninstall packages (keep track of installed files, maybe using `fakeroot`?)
 - [ ] Better "UX"
     - [ ] Check if payload is empty and stop
-    - [ ] Better messages
+    - [ ] Better messages / errors
     - [x] Download progress bars
 - [x] Multithreaded downloading
 - [ ] More tests
+- [ ] Upgrade packages
 
 ## Licenses
 For all licenses, look into `license.html`.  
