@@ -140,7 +140,23 @@ impl Payload {
         self.packages.retain(|payload_pkg| {
             for db_pkg in pkgs.iter().flatten() {
                 if db_pkg.info.version >= payload_pkg.info.version {
-                    // TODO: Mark as manually installed
+                    db.modify(INSTALLED_PKGS, db_pkg.info.name.as_str(), |pkg| match pkg {
+                        Some(mut pkg) => match pkg.local.installed {
+                            Installed::Automatically(ver) | Installed::Manually(ver) => {
+                                pkg.local.installed = Installed::Manually(ver);
+                                Some(pkg)
+                            }
+                            Installed::False => {
+                                warn!(
+                                    "Not installed package {} in INSTALLED_PKGS table!",
+                                    pkg.info.name
+                                );
+                                Some(pkg)
+                            }
+                        },
+                        None => None,
+                    })
+                    .expect("error writing database");
                     return false;
                 }
             }
